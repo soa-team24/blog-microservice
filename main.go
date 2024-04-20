@@ -69,7 +69,15 @@ func main() {
 	changeVoteRouter := router.Methods(http.MethodPatch).Subrouter()
 	changeVoteRouter.HandleFunc("/blog/votes/{id}", blogHandelr.ChangeVote)
 
-	cors := handlers.CORS(handlers.AllowedOrigins([]string{"*"}))
+	allowedOrigins := handlers.AllowedOrigins([]string{"*"}) // Allow all origins
+	allowedMethods := handlers.AllowedMethods([]string{"GET", "HEAD", "POST", "PUT", "DELETE", "OPTIONS"})
+	allowedHeaders := handlers.AllowedHeaders([]string{
+		"Content-Type",
+		"Authorization",
+		"X-Custom-Header",
+	})
+
+	cors := handlers.CORS(allowedOrigins, allowedMethods, allowedHeaders)
 
 	//Initialize the server
 	server := http.Server{
