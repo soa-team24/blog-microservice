@@ -63,14 +63,19 @@ func main() {
 	deleteRouter := router.Methods(http.MethodDelete).Subrouter()
 	deleteRouter.HandleFunc("/blog/{id}", blogHandelr.DeleteBlog)
 
-	// allVotesRouter := router.Methods(http.MethodGet).Subrouter()
-	// allVotesRouter.HandleFunc("/blog/allVotes/{id}", blogHandelr.GetAllVotes)
+	allVotesRouter := router.Methods(http.MethodGet).Subrouter()
+	allVotesRouter.HandleFunc("/blog/allVotes/{id}", blogHandelr.GetAllVotes)
+
+	votesCount := router.Methods(http.MethodGet).Subrouter()
+	votesCount.HandleFunc("/blog/votes/{id}", blogHandelr.GetVotesCount)
 
 	addVoteRouter := router.Methods(http.MethodPatch).Subrouter()
 	addVoteRouter.HandleFunc("/blog/addVote/{id}", blogHandelr.AddVote)
+	addVoteRouter.Use(blogHandelr.MiddlewareVoteDeserialization)
 
 	changeVoteRouter := router.Methods(http.MethodPatch).Subrouter()
-	changeVoteRouter.HandleFunc("/blog/votes/{id}", blogHandelr.ChangeVote)
+	changeVoteRouter.HandleFunc("/blog/updateVote/{id}/{index}", blogHandelr.ChangeVote)
+	changeVoteRouter.Use(blogHandelr.MiddlewareVoteDeserialization)
 
 	allowedOrigins := handlers.AllowedOrigins([]string{"*"}) // Allow all origins
 	allowedMethods := handlers.AllowedMethods([]string{"GET", "HEAD", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"})

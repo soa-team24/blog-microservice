@@ -15,12 +15,19 @@ type Vote struct {
 	CreationTime time.Time          `bson:"creationTime,omitempty" json:"creationTime"`
 }
 
-func (p *Vote) ToJSON(w io.Writer) error {
+type Votes []*Vote
+
+func (v *Votes) ToJSON(w io.Writer) error {
 	e := json.NewEncoder(w)
-	return e.Encode(p)
+	return e.Encode(v)
 }
 
-func (p *Vote) FromJSON(r io.Reader) error {
+func (v *Vote) ToJSON(w io.Writer) error {
+	e := json.NewEncoder(w)
+	return e.Encode(v)
+}
+
+func (v *Vote) FromJSON(r io.Reader) error {
 	d := json.NewDecoder(r)
-	return d.Decode(p)
+	return d.Decode(v)
 }

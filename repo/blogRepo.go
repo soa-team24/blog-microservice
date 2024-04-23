@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"strconv"
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -187,7 +186,7 @@ func (br *BlogRepo) ChangeVote(id string, index int, vote *model.Vote) error {
 	objID, _ := primitive.ObjectIDFromHex(id)
 	filter := bson.D{{Key: "_id", Value: objID}}
 	update := bson.M{"$set": bson.M{
-		"votes." + strconv.Itoa(index): vote,
+		fmt.Sprintf("votes.%d.isUpvote", index): vote.IsUpvote,
 	}}
 	result, err := blogsCollection.UpdateOne(ctx, filter, update)
 	br.logger.Printf("Documents matched: %v\n", result.MatchedCount)

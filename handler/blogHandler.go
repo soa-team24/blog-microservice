@@ -5,6 +5,7 @@ import (
 	"blog-microservice/repo"
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"strconv"
@@ -87,12 +88,81 @@ func (b *BlogHandler) DeleteBlog(rw http.ResponseWriter, h *http.Request) {
 	rw.WriteHeader(http.StatusNoContent)
 }
 
+func (h *BlogHandler) GetAllVotes(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	blogID := vars["id"]
+
+	blog, err := h.repo.Get(blogID)
+	if err != nil {
+		http.Error(w, "Failed to retrieve the blog", http.StatusInternalServerError)
+		return
+	}
+
+	var votes []*model.Vote
+	if blog.Votes != nil {
+		// Konvertujemo blog.Votes u []*model.Vote
+		for _, v := range blog.Votes {
+			votes = append(votes, &v)
+		}
+	} else {
+		votes = []*model.Vote{}
+	}
+
+	jsonVotes, err := json.Marshal(votes)
+	if err != nil {
+		http.Error(w, "Failed to serialize votes to JSON", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+
+	_, err = w.Write(jsonVotes)
+	if err != nil {
+		log.Println("Failed to write JSON response:", err)
+	}
+}
+
+func (h *BlogHandler) GetVotesCount(w http.ResponseWriter, r *http.Request) {
+	// Extract the blog ID from the request URL parameters
+	vars := mux.Vars(r)
+	blogID := vars["id"]
+
+	// Retrieve the blog from the repository by its ID
+	blog, err := h.repo.Get(blogID)
+	if err != nil {
+		// Handle the error (e.g., return an error response)
+		http.Error(w, "Failed to retrieve the blog", http.StatusInternalServerError)
+		return
+	}
+
+	if len(blog.Votes) == 0 || (blog.Votes == nil) {
+		fmt.Fprint(w, "0")
+		return
+	}
+
+	votesCount := 0
+
+	for _, vote := range blog.Votes {
+		if vote.IsUpvote {
+			votesCount++
+		} else {
+			votesCount--
+		}
+	}
+
+	fmt.Fprintf(w, "%d", votesCount)
+}
+
 func (b *BlogHandler) AddVote(rw http.ResponseWriter, h *http.Request) {
 	vars := mux.Vars(h)
 	id := vars["id"]
+	b.logger.Print("Pre bodyija!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!: ")
+
 	vote := h.Context().Value(KeyProduct{}).(*model.Vote)
 
+	b.logger.Print("Pre ulaza u repo: ")
 	b.repo.AddVote(id, vote)
+	b.logger.Print("Posle ulaza u repo: ")
 	rw.WriteHeader(http.StatusOK)
 }
 
@@ -106,11 +176,11 @@ func (b *BlogHandler) ChangeVote(rw http.ResponseWriter, h *http.Request) {
 		return
 	}
 
-	var phoneNumber string
+	var vote model.Vote
 	d := json.NewDecoder(h.Body)
-	d.Decode(&phoneNumber)
+	d.Decode(&vote)
 
-	b.repo.ChangeVote(id, index, &model.Vote{})
+	b.repo.ChangeVote(id, index, &vote)
 	rw.WriteHeader(http.StatusOK)
 }
 
@@ -154,6 +224,23 @@ func (b *BlogHandler) MiddlewareBlogDeserialization(next http.Handler) http.Hand
 		// i onda kazemo da je request request sa novim kontekstom koji smo napravili
 		h = h.WithContext(ctx)
 		//potom zahtev prosledjujemo dalje na izvrsavanje (onoj metoui u mainu)
+		next.ServeHTTP(rw, h)
+	})
+}
+
+func (b *BlogHandler) MiddlewareVoteDeserialization(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(rw http.ResponseWriter, h *http.Request) {
+		vote := &model.Vote{}
+		err := vote.FromJSON(h.Body)
+		if err != nil {
+			http.Error(rw, "Unable to decode json", http.StatusBadRequest)
+			b.logger.Fatal(err)
+			return
+		}
+
+		ctx := context.WithValue(h.Context(), KeyProduct{}, vote)
+		h = h.WithContext(ctx)
+
 		next.ServeHTTP(rw, h)
 	})
 }
