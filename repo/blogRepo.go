@@ -63,6 +63,7 @@ func (pr *BlogRepo) Ping() {
 	if err != nil {
 		pr.logger.Println(err)
 	}
+	fmt.Println("databases: ")
 	fmt.Println(databases)
 }
 
@@ -199,7 +200,7 @@ func (br *BlogRepo) ChangeVote(id string, index int, vote *model.Vote) error {
 	return nil
 }
 
-func (br *BlogRepo) GetByAuthorId(userID string) (model.Blogs, error) {
+func (br *BlogRepo) GetByAuthorId(userID uint32) (model.Blogs, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 

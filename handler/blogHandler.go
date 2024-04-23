@@ -116,9 +116,11 @@ func (b *BlogHandler) ChangeVote(rw http.ResponseWriter, h *http.Request) {
 
 func (b *BlogHandler) GetBlogsByAuthorId(rw http.ResponseWriter, h *http.Request) {
 	vars := mux.Vars(h)
-	userId := vars["userId"]
+	userId := vars["id"]
+	id64, err := strconv.ParseUint(userId, 10, 32)
+	id := uint32(id64)
 
-	blogs, err := b.repo.GetByAuthorId(userId)
+	blogs, err := b.repo.GetByAuthorId(id)
 	if err != nil {
 		b.logger.Print("Database exception: ", err)
 	}

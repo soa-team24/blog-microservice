@@ -54,7 +54,7 @@ func main() {
 	postRouter.Use(blogHandelr.MiddlewareBlogDeserialization) //njega presrece ovaj middleware
 
 	getByAuthorNameRouter := router.Methods(http.MethodGet).Subrouter()
-	getByAuthorNameRouter.HandleFunc("/blog/byUser/{userId}", blogHandelr.GetBlogsByAuthorId)
+	getByAuthorNameRouter.HandleFunc("/blog/byUser/{id}", blogHandelr.GetBlogsByAuthorId)
 
 	updateRouter := router.Methods(http.MethodPatch).Subrouter()
 	updateRouter.HandleFunc("/blog/{id}", blogHandelr.UpdateBlog)
@@ -63,14 +63,17 @@ func main() {
 	deleteRouter := router.Methods(http.MethodDelete).Subrouter()
 	deleteRouter.HandleFunc("/blog/{id}", blogHandelr.DeleteBlog)
 
+	// allVotesRouter := router.Methods(http.MethodGet).Subrouter()
+	// allVotesRouter.HandleFunc("/blog/allVotes/{id}", blogHandelr.GetAllVotes)
+
 	addVoteRouter := router.Methods(http.MethodPatch).Subrouter()
-	addVoteRouter.HandleFunc("/blog/votes/{id}", blogHandelr.AddVote)
+	addVoteRouter.HandleFunc("/blog/addVote/{id}", blogHandelr.AddVote)
 
 	changeVoteRouter := router.Methods(http.MethodPatch).Subrouter()
 	changeVoteRouter.HandleFunc("/blog/votes/{id}", blogHandelr.ChangeVote)
 
 	allowedOrigins := handlers.AllowedOrigins([]string{"*"}) // Allow all origins
-	allowedMethods := handlers.AllowedMethods([]string{"GET", "HEAD", "POST", "PUT", "DELETE", "OPTIONS"})
+	allowedMethods := handlers.AllowedMethods([]string{"GET", "HEAD", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"})
 	allowedHeaders := handlers.AllowedHeaders([]string{
 		"Content-Type",
 		"Authorization",
