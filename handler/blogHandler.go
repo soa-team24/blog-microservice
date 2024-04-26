@@ -207,6 +207,55 @@ func (b *BlogHandler) GetBlogsByAuthorId(rw http.ResponseWriter, h *http.Request
 	}
 }
 
+func (b *BlogHandler) AddComment(rw http.ResponseWriter, h *http.Request) {
+	vars := mux.Vars(h)
+	id := vars["id"]
+	b.logger.Print("Pre bodyija!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!: ")
+
+	comment := h.Context().Value(KeyProduct{}).(*model.Comment)
+
+	b.logger.Print("Pre ulaza u repo: ")
+	b.repo.AddComment(id, comment)
+	b.logger.Print("Posle ulaza u repo: ")
+	rw.WriteHeader(http.StatusOK)
+}
+
+func (b *BlogHandler) UpdateComment(rw http.ResponseWriter, h *http.Request) {
+	vars := mux.Vars(h)
+	id := vars["id"]
+	index, err := strconv.Atoi(vars["index"])
+	if err != nil {
+		http.Error(rw, "Unable to decode comment index", http.StatusBadRequest)
+		b.logger.Fatal(err)
+		return
+	}
+
+	var updatedComment model.Comment
+	d := json.NewDecoder(h.Body)
+	d.Decode(&updatedComment)
+
+	b.repo.UpdateComment(id, index, &updatedComment)
+	rw.WriteHeader(http.StatusOK)
+}
+
+func (b *BlogHandler) DeleteComment(rw http.ResponseWriter, h *http.Request) {
+	vars := mux.Vars(h)
+	id := vars["id"]
+	index, err := strconv.Atoi(vars["index"])
+	if err != nil {
+		http.Error(rw, "Unable to decode comment index", http.StatusBadRequest)
+		b.logger.Fatal(err)
+		return
+	}
+
+	var commentForDeleting model.Comment
+	d := json.NewDecoder(h.Body)
+	d.Decode(&commentForDeleting)
+
+	b.repo.DeleteComment(id, index)
+	rw.WriteHeader(http.StatusOK)
+}
+
 func (b *BlogHandler) MiddlewareBlogDeserialization(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, h *http.Request) {
 		blog := &model.Blog{}        //pravim pokazivac na Patient strukturu
@@ -239,6 +288,23 @@ func (b *BlogHandler) MiddlewareVoteDeserialization(next http.Handler) http.Hand
 		}
 
 		ctx := context.WithValue(h.Context(), KeyProduct{}, vote)
+		h = h.WithContext(ctx)
+
+		next.ServeHTTP(rw, h)
+	})
+}
+
+func (b *BlogHandler) MiddlewareCommentDeserialization(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(rw http.ResponseWriter, h *http.Request) {
+		comment := &model.Comment{}
+		err := comment.FromJSON(h.Body)
+		if err != nil {
+			http.Error(rw, "Unable to decode JSON", http.StatusBadRequest)
+			b.logger.Fatal(err)
+			return
+		}
+
+		ctx := context.WithValue(h.Context(), KeyProduct{}, comment)
 		h = h.WithContext(ctx)
 
 		next.ServeHTTP(rw, h)

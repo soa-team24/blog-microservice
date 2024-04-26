@@ -237,6 +237,75 @@ func (br *BlogRepo) GetByStatus(status model.Status) (model.Blogs, error) {
 	return blogs, nil
 }
 
+func (br *BlogRepo) AddComment(blogID string, comment *model.Comment) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	blogsCollection := br.getCollection()
+
+	objID, _ := primitive.ObjectIDFromHex(blogID)
+
+	filter := bson.D{{Key: "_id", Value: objID}}
+	update := bson.M{"$push": bson.M{"comments": comment}}
+
+	result, err := blogsCollection.UpdateOne(ctx, filter, update)
+	br.logger.Printf("Documents matched: %v\n", result.MatchedCount)
+	br.logger.Printf("Documents updated: %v\n", result.ModifiedCount)
+	if err != nil {
+		br.logger.Println(err)
+		return err
+	}
+
+	return nil
+
+}
+
+func (br *BlogRepo) UpdateComment(id string, index int, updatedComment *model.Comment) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	blogsCollection := br.getCollection()
+
+	objID, _ := primitive.ObjectIDFromHex(id)
+	filter := bson.D{{Key: "_id", Value: objID}}
+	br.logger.Print("comment: ", updatedComment.Text)
+	update := bson.M{"$set": bson.M{
+		fmt.Sprintf("comments.%d.text", index): updatedComment.Text,
+	}}
+	result, err := blogsCollection.UpdateOne(ctx, filter, update)
+	br.logger.Printf("Documents matched: %v\n", result.MatchedCount)
+	br.logger.Printf("Documents updated: %v\n", result.ModifiedCount)
+
+	if err != nil {
+		br.logger.Println(err)
+		return err
+	}
+	return nil
+}
+
+func (br *BlogRepo) DeleteComment(id string, index int) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	blogsCollection := br.getCollection()
+
+	objID, _ := primitive.ObjectIDFromHex(id)
+
+	filter := bson.D{{Key: "_id", Value: objID}}
+	update := bson.M{"$unset": bson.M{
+		fmt.Sprintf("comments.%d", index): "",
+	}}
+
+	result, err := blogsCollection.UpdateOne(ctx, filter, update)
+	if err != nil {
+		br.logger.Println(err)
+		return err
+	}
+
+	br.logger.Printf("Documents matched: %v\n", result.MatchedCount)
+	br.logger.Printf("Documents updated: %v\n", result.ModifiedCount)
+
+	return nil
+}
+
 func (br *BlogRepo) getCollection() *mongo.Collection {
 	blogDatabase := br.cli.Database("mongoDemo")
 	blogsCollection := blogDatabase.Collection("blogs")
