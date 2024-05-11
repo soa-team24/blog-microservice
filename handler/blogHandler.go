@@ -210,7 +210,6 @@ func (b *BlogHandler) GetBlogsByAuthorId(rw http.ResponseWriter, h *http.Request
 func (b *BlogHandler) AddComment(rw http.ResponseWriter, h *http.Request) {
 	vars := mux.Vars(h)
 	id := vars["id"]
-	b.logger.Print("Pre bodyija!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!: ")
 
 	comment := h.Context().Value(KeyProduct{}).(*model.Comment)
 
@@ -230,29 +229,24 @@ func (b *BlogHandler) UpdateComment(rw http.ResponseWriter, h *http.Request) {
 		return
 	}
 
-	var updatedComment model.Comment
-	d := json.NewDecoder(h.Body)
-	d.Decode(&updatedComment)
+	updatedComment := h.Context().Value(KeyProduct{}).(*model.Comment)
 
-	b.repo.UpdateComment(id, index, &updatedComment)
+	b.repo.UpdateComment(id, index, updatedComment)
 	rw.WriteHeader(http.StatusOK)
 }
 
 func (b *BlogHandler) DeleteComment(rw http.ResponseWriter, h *http.Request) {
 	vars := mux.Vars(h)
-	id := vars["id"]
-	index, err := strconv.Atoi(vars["index"])
+	blogId := vars["blogId"]
+	commentId := vars["commentId"]
+
+	err := b.repo.DeleteComment(blogId, commentId)
+
 	if err != nil {
-		http.Error(rw, "Unable to decode comment index", http.StatusBadRequest)
+		http.Error(rw, "Unable to delete comment", http.StatusBadRequest)
 		b.logger.Fatal(err)
 		return
 	}
-
-	var commentForDeleting model.Comment
-	d := json.NewDecoder(h.Body)
-	d.Decode(&commentForDeleting)
-
-	b.repo.DeleteComment(id, index)
 	rw.WriteHeader(http.StatusOK)
 }
 

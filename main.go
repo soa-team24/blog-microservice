@@ -85,9 +85,8 @@ func main() {
 	changeCommentRouter.HandleFunc("/blog/updateComment/{id}/{index}", blogHandelr.UpdateComment)
 	changeCommentRouter.Use(blogHandelr.MiddlewareCommentDeserialization)
 
-	deleteCommentRouter := router.Methods(http.MethodPatch).Subrouter()
-	deleteCommentRouter.HandleFunc("/blog/deleteComment/{id}/{index}", blogHandelr.DeleteComment)
-	deleteCommentRouter.Use(blogHandelr.MiddlewareCommentDeserialization)
+	deleteCommentRouter := router.Methods(http.MethodDelete).Subrouter()
+	deleteCommentRouter.HandleFunc("/blog/deleteComment/{blogId}/{commentId}", blogHandelr.DeleteComment)
 
 	allowedOrigins := handlers.AllowedOrigins([]string{"*"}) // Allow all origins
 	allowedMethods := handlers.AllowedMethods([]string{"GET", "HEAD", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"})

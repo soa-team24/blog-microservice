@@ -241,6 +241,7 @@ func (br *BlogRepo) AddComment(blogID string, comment *model.Comment) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
+	comment.ID = primitive.NewObjectID()
 	blogsCollection := br.getCollection()
 
 	objID, _ := primitive.ObjectIDFromHex(blogID)
@@ -280,19 +281,21 @@ func (br *BlogRepo) UpdateComment(id string, index int, updatedComment *model.Co
 		return err
 	}
 	return nil
+
 }
 
-func (br *BlogRepo) DeleteComment(id string, index int) error {
+func (br *BlogRepo) DeleteComment(blogID string, commentID string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	blogsCollection := br.getCollection()
 
-	objID, _ := primitive.ObjectIDFromHex(id)
+	blogObjID, _ := primitive.ObjectIDFromHex(blogID)
+	commentObjID, _ := primitive.ObjectIDFromHex(commentID)
 
-	filter := bson.D{{Key: "_id", Value: objID}}
-	update := bson.M{"$unset": bson.M{
-		fmt.Sprintf("comments.%d", index): "",
-	}}
+	filter := bson.D{{Key: "_id", Value: blogObjID}}
+	update := bson.M{
+		"$pull": bson.M{"comments": bson.M{"_id": commentObjID}},
+	}
 
 	result, err := blogsCollection.UpdateOne(ctx, filter, update)
 	if err != nil {
@@ -304,6 +307,7 @@ func (br *BlogRepo) DeleteComment(id string, index int) error {
 	br.logger.Printf("Documents updated: %v\n", result.ModifiedCount)
 
 	return nil
+
 }
 
 func (br *BlogRepo) getCollection() *mongo.Collection {
