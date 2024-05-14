@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"blog-microservice/mapper"
 	"blog-microservice/model"
 	"blog-microservice/repo"
 	"context"
@@ -9,6 +10,8 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+
+	"soa/grpc/proto/blog"
 
 	"github.com/gorilla/mux"
 )
@@ -24,24 +27,48 @@ func NewBlogHandler(l *log.Logger, r *repo.BlogRepo) *BlogHandler {
 	return &BlogHandler{l, r}
 }
 
-func (b *BlogHandler) GetAllBlogs(rw http.ResponseWriter, h *http.Request) {
-	blogs, err := b.repo.GetAll()
+// ???????
+func (b *BlogHandler) GetAllBlogs(ctx context.Context, request *blog.GetAllRequest) (*blog.GetBlogsResponse, error) {
+	modelBlogs, err := b.repo.GetAll()
 	if err != nil {
 		b.logger.Print("Database exception: ", err)
 	}
 
-	if blogs == nil {
-		return
+	var blogs []model.Blog
+
+	for _, b := range modelBlogs {
+		blogs = append(blogs, *b)
 	}
 
-	err = blogs.ToJSON(rw)
-	if err != nil {
-		http.Error(rw, "Unable to convert to json", http.StatusInternalServerError)
-		b.logger.Fatal("Unable to convert to json :", err)
-		return
+	protoBlogs := mapper.MapSliceToProtoBlogs(blogs)
+	response := &blog.GetBlogsResponse{
+		Blogs: protoBlogs,
 	}
+	return response, nil
+
 }
 
+func (b *BlogHandler) GetBlogById(ctx context.Context, request *blog.GetByIdRequest) (*blog.BlogResponse, error) {
+	id := request.Id
+
+	blogM, err := b.repo.Get(id)
+	if err != nil {
+		b.logger.Print("Database exception: ", err)
+	}
+
+	if blogM == nil {
+		b.logger.Printf("Blog with id: '%s' not found", id)
+		return nil, fmt.Errorf("blog with given id not found")
+	}
+
+	protoBlog := mapper.MapToPBlog(blogM)
+	response := &blog.BlogResponse{
+		Blog: protoBlog,
+	}
+	return response, nil
+}
+
+/*
 func (b *BlogHandler) GetBlogById(rw http.ResponseWriter, h *http.Request) {
 	vars := mux.Vars(h)
 	id := vars["id"]
@@ -63,23 +90,67 @@ func (b *BlogHandler) GetBlogById(rw http.ResponseWriter, h *http.Request) {
 		b.logger.Fatal("Unable to convert to json :", err)
 		return
 	}
+}*/
+
+func (b *BlogHandler) PostBlog(ctx context.Context, request *blog.CreateBlogRequest) (*blog.BlogResponse, error) {
+	newBlog := ctx.Value(KeyProduct{}).(*model.Blog)
+	err := b.repo.Insert(newBlog)
+	if err != nil {
+		return nil, err
+	}
+
+	protoBlog := mapper.MapToPBlog(newBlog)
+	response := &blog.BlogResponse{
+		Blog: protoBlog,
+	}
+
+	return response, nil
 }
 
+/*
 func (b *BlogHandler) PostBlog(rw http.ResponseWriter, h *http.Request) {
 	blog := h.Context().Value(KeyProduct{}).(*model.Blog)
 	b.repo.Insert(blog)
 	rw.WriteHeader(http.StatusCreated)
 }
+*/
 
+func (b *BlogHandler) UpdateBlog(ctx context.Context, request *blog.UpdateBlogRequest) (*blog.BlogResponse, error) {
+	id := request.Id
+
+	blogUpdate := ctx.Value(KeyProduct{}).(*model.Blog)
+
+	b.repo.Update(id, blogUpdate)
+
+	response := &blog.BlogResponse{
+		Blog: nil,
+	}
+	return response, nil
+}
+
+/*
 func (b *BlogHandler) UpdateBlog(rw http.ResponseWriter, h *http.Request) {
 	vars := mux.Vars(h)
+
 	id := vars["id"]
 	blog := h.Context().Value(KeyProduct{}).(*model.Blog)
 
 	b.repo.Update(id, blog)
 	rw.WriteHeader(http.StatusOK)
 }
+*/
+// ?????????????????????????
+func (b *BlogHandler) DeleteBlog(ctx context.Context, request *blog.GetByIdRequest) (*blog.BlogResponse, error) {
+	id := request.Id
 
+	b.repo.Delete(id)
+	response := &blog.BlogResponse{
+		Blog: nil,
+	}
+	return response, nil
+}
+
+/*
 func (b *BlogHandler) DeleteBlog(rw http.ResponseWriter, h *http.Request) {
 	vars := mux.Vars(h)
 	id := vars["id"]
@@ -87,7 +158,34 @@ func (b *BlogHandler) DeleteBlog(rw http.ResponseWriter, h *http.Request) {
 	b.repo.Delete(id)
 	rw.WriteHeader(http.StatusNoContent)
 }
+*/
 
+func (h *BlogHandler) GetAllVotes(ctx context.Context, request *blog.GetByIdRequest) (*blog.GetAllVotesResponse, error) {
+	blogID := request.Id
+
+	modelBlog, err := h.repo.Get(blogID)
+	if err != nil {
+		return nil, err
+	}
+
+	var votes []model.Vote
+	if modelBlog.Votes != nil {
+		for _, v := range modelBlog.Votes {
+			votes = append(votes, v)
+		}
+	} else {
+		votes = []model.Vote{}
+	}
+
+	protoVotes := mapper.MapSliceToProtoVotes(votes)
+
+	response := &blog.GetAllVotesResponse{
+		Votes: protoVotes,
+	}
+	return response, nil
+}
+
+/*
 func (h *BlogHandler) GetAllVotes(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	blogID := vars["id"]
@@ -121,7 +219,38 @@ func (h *BlogHandler) GetAllVotes(w http.ResponseWriter, r *http.Request) {
 		log.Println("Failed to write JSON response:", err)
 	}
 }
+*/
 
+func (h *BlogHandler) GetVotesCount(ctx context.Context, request *blog.GetByIdRequest) (*blog.GetVotesCountResponse, error) {
+	blogID := request.Id
+
+	modelBlog, err := h.repo.Get(blogID)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(modelBlog.Votes) == 0 || (modelBlog.Votes == nil) {
+		return nil, nil
+	}
+
+	votesCount := 0
+
+	for _, vote := range modelBlog.Votes {
+		if vote.IsUpvote {
+			votesCount++
+		} else {
+			votesCount--
+		}
+	}
+
+	response := &blog.GetVotesCountResponse{
+		Count: uint32(votesCount),
+	}
+
+	return response, nil
+}
+
+/*
 func (h *BlogHandler) GetVotesCount(w http.ResponseWriter, r *http.Request) {
 	// Extract the blog ID from the request URL parameters
 	vars := mux.Vars(r)
@@ -152,7 +281,26 @@ func (h *BlogHandler) GetVotesCount(w http.ResponseWriter, r *http.Request) {
 
 	fmt.Fprintf(w, "%d", votesCount)
 }
+*/
 
+func (b *BlogHandler) AddVote(ctx context.Context, request *blog.GetByIdRequest) (*blog.VoteResponse, error) {
+	id := request.Id
+	b.logger.Print("Pre bodyija!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!: ")
+
+	vote := ctx.Value(KeyProduct{}).(*model.Vote)
+
+	b.logger.Print("Pre ulaza u repo: ")
+	b.repo.AddVote(id, vote)
+	b.logger.Print("Posle ulaza u repo: ")
+	protoVote := mapper.MapToPVote(vote)
+	response := &blog.VoteResponse{
+		Vote: protoVote,
+	}
+
+	return response, nil
+}
+
+/*
 func (b *BlogHandler) AddVote(rw http.ResponseWriter, h *http.Request) {
 	vars := mux.Vars(h)
 	id := vars["id"]
@@ -165,7 +313,25 @@ func (b *BlogHandler) AddVote(rw http.ResponseWriter, h *http.Request) {
 	b.logger.Print("Posle ulaza u repo: ")
 	rw.WriteHeader(http.StatusOK)
 }
+*/
 
+func (b *BlogHandler) ChangeVote(ctx context.Context, request *blog.ChangeVoteRequest) (*blog.VoteResponse, error) {
+	id := request.Id
+	index := int(request.Index)
+	vote := mapper.MapToVote(request.Vote)
+
+	b.repo.ChangeVote(id, index, vote)
+
+	protoVote := mapper.MapToPVote(vote)
+
+	response := &blog.VoteResponse{
+		Vote: protoVote,
+	}
+
+	return response, nil
+}
+
+/*
 func (b *BlogHandler) ChangeVote(rw http.ResponseWriter, h *http.Request) {
 	vars := mux.Vars(h)
 	id := vars["id"]
@@ -183,11 +349,46 @@ func (b *BlogHandler) ChangeVote(rw http.ResponseWriter, h *http.Request) {
 	b.repo.ChangeVote(id, index, &vote)
 	rw.WriteHeader(http.StatusOK)
 }
+*/
 
+func (b *BlogHandler) GetBlogsByAuthorId(ctx context.Context, request *blog.GetByIdRequest) (*blog.GetBlogsResponse, error) {
+	userId := request.Id
+	id64, err := strconv.ParseUint(userId, 10, 32)
+	if err != nil {
+		b.logger.Print("Database exception: ", err)
+	}
+	id := uint32(id64)
+
+	modelBlogs, err := b.repo.GetByAuthorId(id)
+	if err != nil {
+		b.logger.Print("Database exception: ", err)
+	}
+
+	if modelBlogs == nil {
+		return nil, nil
+	}
+
+	var blogs []model.Blog
+
+	for _, b := range modelBlogs {
+		blogs = append(blogs, *b)
+	}
+
+	protoBlogs := mapper.MapSliceToProtoBlogs(blogs)
+	response := &blog.GetBlogsResponse{
+		Blogs: protoBlogs,
+	}
+	return response, nil
+}
+
+/*
 func (b *BlogHandler) GetBlogsByAuthorId(rw http.ResponseWriter, h *http.Request) {
 	vars := mux.Vars(h)
 	userId := vars["id"]
 	id64, err := strconv.ParseUint(userId, 10, 32)
+	if err != nil {
+		b.logger.Print("Database exception: ", err)
+	}
 	id := uint32(id64)
 
 	blogs, err := b.repo.GetByAuthorId(id)
@@ -206,6 +407,7 @@ func (b *BlogHandler) GetBlogsByAuthorId(rw http.ResponseWriter, h *http.Request
 		return
 	}
 }
+*/
 
 func (b *BlogHandler) AddComment(rw http.ResponseWriter, h *http.Request) {
 	vars := mux.Vars(h)
@@ -322,3 +524,23 @@ func (b *BlogHandler) MiddlewareContentTypeSet(next http.Handler) http.Handler {
 		next.ServeHTTP(rw, h) // prosledi zahtev dalje na obradu kome treba
 	})
 }
+
+/*
+	func (b *BlogHandler) GetAllBlogs(rw http.ResponseWriter, h *http.Request) {
+		blogs, err := b.repo.GetAll()
+		if err != nil {
+			b.logger.Print("Database exception: ", err)
+		}
+
+		if blogs == nil {
+			return
+		}
+
+		err = blogs.ToJSON(rw)
+		if err != nil {
+			http.Error(rw, "Unable to convert to json", http.StatusInternalServerError)
+			b.logger.Fatal("Unable to convert to json :", err)
+			return
+		}
+	}
+*/
