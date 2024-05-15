@@ -5,20 +5,17 @@ import (
 	"blog-microservice/repo"
 	"context"
 	"log"
-	"net/http"
+	"net"
 	"os"
-	"os/signal"
 	"time"
 
-	"github.com/gorilla/handlers"
-	"github.com/gorilla/mux"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/reflection"
+
+	"soa/grpc/proto/blog"
 )
 
 func main() {
-	port := os.Getenv("PORT")
-	if len(port) == 0 {
-		port = "8080"
-	}
 
 	timeoutContext, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -38,94 +35,17 @@ func main() {
 
 	blogHandelr := handler.NewBlogHandler(logger, store)
 
-	//Initialize the router and add a middleware for all the requests
-	router := mux.NewRouter()
-	//kada istanciramo router, preko .Use treba da mu prosledimo Middleware(fju za kreiranje middleware-a)
-	router.Use(blogHandelr.MiddlewareContentTypeSet) //osnovni middleware
-
-	getRouter := router.Methods(http.MethodGet).Subrouter()
-	getRouter.HandleFunc("/blog", blogHandelr.GetAllBlogs)
-
-	getByIdRouter := router.Methods(http.MethodGet).Subrouter()
-	getByIdRouter.HandleFunc("/blog/{id}", blogHandelr.GetBlogById)
-
-	postRouter := router.Methods(http.MethodPost).Subrouter() //pravim novu instancu routera na osnovu inicijalnog routera i kazem da ce metod biti post
-	postRouter.HandleFunc("/blog", blogHandelr.PostBlog)      // kazem koji hendler ce hendlati taj zahtev
-	postRouter.Use(blogHandelr.MiddlewareBlogDeserialization) //njega presrece ovaj middleware
-
-	getByAuthorNameRouter := router.Methods(http.MethodGet).Subrouter()
-	getByAuthorNameRouter.HandleFunc("/blog/byUser/{id}", blogHandelr.GetBlogsByAuthorId)
-
-	updateRouter := router.Methods(http.MethodPatch).Subrouter()
-	updateRouter.HandleFunc("/blog/{id}", blogHandelr.UpdateBlog)
-	updateRouter.Use(blogHandelr.MiddlewareBlogDeserialization)
-
-	deleteRouter := router.Methods(http.MethodDelete).Subrouter()
-	deleteRouter.HandleFunc("/blog/{id}", blogHandelr.DeleteBlog)
-
-	allVotesRouter := router.Methods(http.MethodGet).Subrouter()
-	allVotesRouter.HandleFunc("/blog/allVotes/{id}", blogHandelr.GetAllVotes)
-
-	votesCount := router.Methods(http.MethodGet).Subrouter()
-	votesCount.HandleFunc("/blog/votes/{id}", blogHandelr.GetVotesCount)
-
-	addVoteRouter := router.Methods(http.MethodPatch).Subrouter()
-	addVoteRouter.HandleFunc("/blog/addVote/{id}", blogHandelr.AddVote)
-	addVoteRouter.Use(blogHandelr.MiddlewareVoteDeserialization)
-
-	changeVoteRouter := router.Methods(http.MethodPatch).Subrouter()
-	changeVoteRouter.HandleFunc("/blog/updateVote/{id}/{index}", blogHandelr.ChangeVote)
-	changeVoteRouter.Use(blogHandelr.MiddlewareVoteDeserialization)
-
-	addCommentRouter := router.Methods(http.MethodPatch).Subrouter()
-	addCommentRouter.HandleFunc("/blog/addComment/{id}", blogHandelr.AddComment)
-	addCommentRouter.Use(blogHandelr.MiddlewareCommentDeserialization)
-
-	changeCommentRouter := router.Methods(http.MethodPatch).Subrouter()
-	changeCommentRouter.HandleFunc("/blog/updateComment/{id}/{index}", blogHandelr.UpdateComment)
-	changeCommentRouter.Use(blogHandelr.MiddlewareCommentDeserialization)
-
-	deleteCommentRouter := router.Methods(http.MethodDelete).Subrouter()
-	deleteCommentRouter.HandleFunc("/blog/deleteComment/{blogId}/{commentId}", blogHandelr.DeleteComment)
-
-	allowedOrigins := handlers.AllowedOrigins([]string{"*"}) // Allow all origins
-	allowedMethods := handlers.AllowedMethods([]string{"GET", "HEAD", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"})
-	allowedHeaders := handlers.AllowedHeaders([]string{
-		"Content-Type",
-		"Authorization",
-		"X-Custom-Header",
-	})
-
-	cors := handlers.CORS(allowedOrigins, allowedMethods, allowedHeaders)
-
-	//Initialize the server
-	server := http.Server{
-		Addr:         ":" + port,
-		Handler:      cors(router),
-		IdleTimeout:  120 * time.Second,
-		ReadTimeout:  1 * time.Second,
-		WriteTimeout: 1 * time.Second,
+	lis, err := net.Listen("tcp", "localhost:8080")
+	if err != nil {
+		log.Fatalf("failed to listen: %v", err)
 	}
 
-	logger.Println("Server listening on port", port)
-	//Distribute all the connections to goroutines
-	go func() {
-		err := server.ListenAndServe()
-		if err != nil {
-			logger.Fatal(err)
-		}
-	}()
+	var opts []grpc.ServerOption
+	grpcServer := grpc.NewServer(opts...)
 
-	sigCh := make(chan os.Signal)
-	signal.Notify(sigCh, os.Interrupt)
-	signal.Notify(sigCh, os.Kill)
+	blog.RegisterBlogServiceServer(grpcServer, blogHandelr)
+	reflection.Register(grpcServer)
+	grpcServer.Serve(lis)
 
-	sig := <-sigCh
-	logger.Println("Received terminate, graceful shutdown", sig)
-
-	//Try to shutdown gracefully
-	if server.Shutdown(timeoutContext) != nil {
-		logger.Fatal("Cannot gracefully shutdown...")
-	}
 	logger.Println("Server stopped")
 }

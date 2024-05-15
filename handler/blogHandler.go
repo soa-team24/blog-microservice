@@ -9,23 +9,21 @@ import (
 	//"encoding/json"
 	"fmt"
 	"log"
-	"net/http"
 	"strconv"
 
 	"soa/grpc/proto/blog"
-
-	"github.com/gorilla/mux"
 )
 
 type KeyProduct struct{}
 
 type BlogHandler struct {
+	blog.UnimplementedBlogServiceServer
 	logger *log.Logger
 	repo   *repo.BlogRepo
 }
 
 func NewBlogHandler(l *log.Logger, r *repo.BlogRepo) *BlogHandler {
-	return &BlogHandler{l, r}
+	return &BlogHandler{logger: l, repo: r}
 }
 
 // ???????
@@ -284,11 +282,11 @@ func (h *BlogHandler) GetVotesCount(w http.ResponseWriter, r *http.Request) {
 }
 */
 
-func (b *BlogHandler) AddVote(ctx context.Context, request *blog.GetByIdRequest) (*blog.VoteResponse, error) {
+func (b *BlogHandler) AddVote(ctx context.Context, request *blog.AddVoteRequest) (*blog.VoteResponse, error) {
 	id := request.Id
 	b.logger.Print("Pre bodyija!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!: ")
 
-	vote := ctx.Value(KeyProduct{}).(*model.Vote)
+	vote := mapper.MapToVote(request.Vote)
 
 	b.logger.Print("Pre ulaza u repo: ")
 	b.repo.AddVote(id, vote)
@@ -410,34 +408,54 @@ func (b *BlogHandler) GetBlogsByAuthorId(rw http.ResponseWriter, h *http.Request
 }
 */
 
-func (b *BlogHandler) AddComment(rw http.ResponseWriter, h *http.Request) {
-	vars := mux.Vars(h)
-	id := vars["id"]
-
-	comment := h.Context().Value(KeyProduct{}).(*model.Comment)
+func (b *BlogHandler) AddComment(ctx context.Context, request *blog.AddCommentRequest) (*blog.CommentResponse, error) {
+	id := request.Id
+	comment := mapper.MapToComment(request.Comment)
 
 	b.logger.Print("Pre ulaza u repo: ")
 	b.repo.AddComment(id, comment)
 	b.logger.Print("Posle ulaza u repo: ")
-	rw.WriteHeader(http.StatusOK)
-}
 
-func (b *BlogHandler) UpdateComment(rw http.ResponseWriter, h *http.Request) {
-	vars := mux.Vars(h)
-	id := vars["id"]
-	index, err := strconv.Atoi(vars["index"])
-	if err != nil {
-		http.Error(rw, "Unable to decode comment index", http.StatusBadRequest)
-		b.logger.Fatal(err)
-		return
+	protoComment := mapper.MapToPComment(comment)
+
+	response := &blog.CommentResponse{
+		Comment: protoComment,
 	}
 
-	updatedComment := h.Context().Value(KeyProduct{}).(*model.Comment)
+	return response, nil
 
-	b.repo.UpdateComment(id, index, updatedComment)
-	rw.WriteHeader(http.StatusOK)
 }
 
+func (b *BlogHandler) UpdateComment(ctx context.Context, request *blog.UpdateCommentRequest) (*blog.CommentResponse, error) {
+	id := request.Id
+	comment := mapper.MapToComment(request.Comment)
+	index := int(request.Index)
+
+	b.repo.UpdateComment(id, index, comment)
+
+	protoComment := mapper.MapToPComment(comment)
+
+	response := &blog.CommentResponse{
+		Comment: protoComment,
+	}
+
+	return response, nil
+}
+
+func (b *BlogHandler) DeleteComment(ctx context.Context, request *blog.DeleteCommentRequest) (*blog.CommentResponse, error) {
+	id := request.Id
+	index := string(request.Index)
+
+	b.repo.DeleteComment(id, index)
+	response := &blog.CommentResponse{
+		Comment: nil,
+	}
+
+	return response, nil
+
+}
+
+/*
 func (b *BlogHandler) DeleteComment(rw http.ResponseWriter, h *http.Request) {
 	vars := mux.Vars(h)
 	blogId := vars["blogId"]
@@ -452,6 +470,7 @@ func (b *BlogHandler) DeleteComment(rw http.ResponseWriter, h *http.Request) {
 	}
 	rw.WriteHeader(http.StatusOK)
 }
+
 
 func (b *BlogHandler) MiddlewareBlogDeserialization(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, h *http.Request) {
@@ -520,7 +539,6 @@ func (b *BlogHandler) MiddlewareContentTypeSet(next http.Handler) http.Handler {
 	})
 }
 
-/*
 	func (b *BlogHandler) GetAllBlogs(rw http.ResponseWriter, h *http.Request) {
 		blogs, err := b.repo.GetAll()
 		if err != nil {
