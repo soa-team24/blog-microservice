@@ -9,9 +9,8 @@ import (
 	//"encoding/json"
 	"fmt"
 	"log"
-	"strconv"
-
 	"soa/grpc/proto/blog"
+	"strconv"
 )
 
 type KeyProduct struct{}
@@ -92,7 +91,8 @@ func (b *BlogHandler) GetBlogById(rw http.ResponseWriter, h *http.Request) {
 }*/
 
 func (b *BlogHandler) PostBlog(ctx context.Context, request *blog.CreateBlogRequest) (*blog.BlogResponse, error) {
-	newBlog := ctx.Value(KeyProduct{}).(*model.Blog)
+	newBlog := mapper.MapToBlog(request.Blog)
+
 	err := b.repo.Insert(newBlog)
 	if err != nil {
 		return nil, err

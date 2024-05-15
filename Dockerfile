@@ -2,6 +2,7 @@ FROM golang:alpine as build_container
 WORKDIR /app
 COPY go.mod .
 COPY go.sum .
+COPY proto /app/proto
 RUN go mod download
 COPY . .
 RUN go build -o server

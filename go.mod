@@ -29,4 +29,4 @@ require (
 	google.golang.org/protobuf v1.27.1
 )
 
-replace soa/grpc/proto => ../proto
+replace soa/grpc/proto => /app/proto
