@@ -6,7 +6,6 @@ require (
 	github.com/gorilla/handlers v1.5.2
 	github.com/gorilla/mux v1.8.1
 	go.mongodb.org/mongo-driver v1.15.0
-	soa/grpc/proto v0.0.1
 )
 
 require (
@@ -29,4 +28,3 @@ require (
 	google.golang.org/protobuf v1.27.1
 )
 
-replace soa/grpc/proto => /app/proto

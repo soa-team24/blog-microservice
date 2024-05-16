@@ -7,9 +7,9 @@ import (
 	"context"
 
 	//"encoding/json"
+	"blog-microservice/proto/blog"
 	"fmt"
 	"log"
-	"soa/grpc/proto/blog"
 	"strconv"
 )
 
@@ -26,7 +26,7 @@ func NewBlogHandler(l *log.Logger, r *repo.BlogRepo) *BlogHandler {
 }
 
 // ???????
-func (b *BlogHandler) GetAllBlogs(ctx context.Context, request *blog.GetAllRequest) (*blog.GetBlogsResponse, error) {
+func (b *BlogHandler) GetAllBlogs(ctx context.Context, request *blog.GetAllRequestB) (*blog.GetBlogsResponse, error) {
 	modelBlogs, err := b.repo.GetAll()
 	if err != nil {
 		b.logger.Print("Database exception: ", err)

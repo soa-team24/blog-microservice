@@ -2,7 +2,7 @@ package mapper
 
 import (
 	"blog-microservice/model"
-	p "soa/grpc/proto/blog"
+	p "blog-microservice/proto/blog"
 
 	"google.golang.org/protobuf/types/known/timestamppb"
 )

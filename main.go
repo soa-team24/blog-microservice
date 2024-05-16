@@ -7,12 +7,14 @@ import (
 	"log"
 	"net"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 
-	"soa/grpc/proto/blog"
+	"blog-microservice/proto/blog"
 )
 
 func main() {
@@ -35,17 +37,25 @@ func main() {
 
 	blogHandelr := handler.NewBlogHandler(logger, store)
 
-	lis, err := net.Listen("tcp", "localhost:8080")
+	lis, err := net.Listen("tcp", ":8000")
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}
 
-	var opts []grpc.ServerOption
-	grpcServer := grpc.NewServer(opts...)
+	grpcServer := grpc.NewServer()
+	reflection.Register(grpcServer)
 
 	blog.RegisterBlogServiceServer(grpcServer, blogHandelr)
-	reflection.Register(grpcServer)
-	grpcServer.Serve(lis)
+	go func() {
+		if err := grpcServer.Serve(lis); err != nil {
+			log.Fatal("server error: ", err)
+		}
+	}()
 
-	logger.Println("Server stopped")
+	stopCh := make(chan os.Signal)
+	signal.Notify(stopCh, syscall.SIGTERM)
+
+	<-stopCh
+
+	grpcServer.Stop()
 }
