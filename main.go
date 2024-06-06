@@ -45,12 +45,15 @@ func main() {
 	grpcServer := grpc.NewServer()
 	reflection.Register(grpcServer)
 
+	log.Println("Blog starting")
+
 	blog.RegisterBlogServiceServer(grpcServer, blogHandelr)
 	go func() {
 		if err := grpcServer.Serve(lis); err != nil {
 			log.Fatal("server error: ", err)
 		}
 	}()
+	log.Println("Blog started")
 
 	stopCh := make(chan os.Signal)
 	signal.Notify(stopCh, syscall.SIGTERM)
